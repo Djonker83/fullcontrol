@@ -2,13 +2,13 @@
 # from pydantic import model_validator, BaseModel
 from pydantic import BaseModel, __version__
 
-if int(__version__.split('.')[0]) >= 2:
-    from pydantic import model_validator as validator
-    validator_args = {"mode": "before"}
-else:
-    from pydantic import root_validator as validator
-    validator_args = {"pre": True}
 
+def check_fields(allowed_fields, defined_attributes, class_name):
+   for attribute in defined_attributes.keys():
+       if attribute not in allowed_fields:
+           raise Exception(f'\nattribute "{attribute}" not allowed for the class {class_name}\nattributes defined: {str(defined_attributes)[1:-1]}\nattributes allowed: {repr(list(allowed_fields))[1:-1]}')
+
+    
 class BaseModelPlus(BaseModel):
 
     """
@@ -24,7 +24,7 @@ class BaseModelPlus(BaseModel):
         __setitem__: Sets the value of an attribute.
         __getitem__: Retrieves the value of an attribute.
         update_from: Updates the attributes of the object from another object.
-        check_card_number_omitted: Validator to check if certain attributes are allowed.
+        reject_extra_fields (classmethod): Validator to check if certain attributes are allowed.
 
     """
 
@@ -47,29 +47,23 @@ class BaseModelPlus(BaseModel):
                 if (value is not None) and (key in self_vars):
                     self[key] = value
 
-    @classmethod
-    @validator(**validator_args)
-    def check_card_number_omitted(cls, values):
-        """
-        Check if the card number is omitted.
-
-        This function validates if the given values contain any card number that is not allowed for the class.
-        It raises an exception if any invalid card number is found.
-
-        Args:
-            cls (Type): The class being validated.
-            values (Dict[str, Any]): The values to be checked.
-
-        Raises:
-            Exception: If any invalid card number is found.
-
-        Returns:
-            Dict[str, Any]: The validated values.
-        """
-        annots = cls.__fields__
-        for value in values:
-            if value not in annots:
-                # print(f'error: value "{value}" not allowed for the class {cls.__name__}. attributes defined: {values}')
-                raise Exception(
-                    f'error: value "{value}" not allowed for the class {cls.__name__}\nattributes defined: {values}\nattributes allowed: {cls.__fields__.keys()}')
-        return values
+    if int(__version__.split('.')[0]) >= 2:
+        # Pydantic v2 config
+        model_config = {"extra": "allow"}
+        from pydantic import model_validator
+        @model_validator(mode="before")
+        @classmethod
+        def reject_extra_fields(cls, values):
+            check_fields(cls.model_fields.keys(), values, cls.__name__)
+            # values must be returned for pydantic v2
+            return values
+    else:
+        from pydantic import root_validator
+        # Pydantic v1 config
+        class Config:
+            extra = "allow"
+        @root_validator(pre=True)
+        @classmethod
+        def reject_extra_fields(cls, values):
+            check_fields(cls.__fields__.keys(), values, cls.__name__)
+            return values
