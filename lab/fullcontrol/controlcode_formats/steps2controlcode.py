@@ -37,8 +37,12 @@ def gcode_to_bambu_3mf(gcode: str, new_3mf_file: str):
         zip_ref.extractall(extract_dir)
 
     plate_gcode_file = os.path.join(extract_dir, "Metadata", "plate_1.gcode")
-    with open(plate_gcode_file, 'r+') as file:
-        file.write(file.read().replace("; [FULLCONTROL GCODE HERE]", gcode))
+    placeholder = "; [FULLCONTROL GCODE HERE]"
+    with open(plate_gcode_file, "r", encoding="utf-8") as f:
+        content = f.read()
+    new_content = content.replace(placeholder, gcode)
+    with open(plate_gcode_file, "w", encoding="utf-8") as f:
+        f.write(new_content)
 
     # Step 4: Repackage contents of FC_bambulab_template into a new .3mf
     fc_template_dir = os.path.join(extract_dir)
